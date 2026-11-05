@@ -3,6 +3,7 @@
 import streamlit as st
 
 from interfaz.editor import mostrar_editor
+from interfaz.explorador import mostrar_explorador
 
 st.set_page_config(
     page_title="GraphLab TC | UNAH",
@@ -24,8 +25,7 @@ with st.sidebar:
 if pagina == "Editor de grafos":
     mostrar_editor()
 elif pagina == "Exploración BFS/DFS":
-    st.header("Exploración BFS / DFS")
-    st.info("Pendiente de integración con las funciones del Desarrollador 1. El contrato está en docs/CONTRATO_ALGORITMOS.md.")
+    mostrar_explorador()
 elif pagina == "Comparación":
     st.header("Comparación de algoritmos")
     st.info("Módulo planificado: recorridos, tiempos, memoria y complejidad teórica.")
