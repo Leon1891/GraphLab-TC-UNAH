@@ -28,29 +28,48 @@ def test_cobertura_invalida():
 
 def test_resolver_cobertura_existente():
     r = resolver_vertex_cover(triangulo(), 2)
+
     assert r["existe"] is True
     assert len(r["cobertura"]) <= 2
-    assert verificar_cobertura(triangulo(), r["cobertura"])
+
+    assert verificar_cobertura(
+        triangulo(),
+        r["cobertura"]
+    )
 
 
 def test_no_existe_cobertura():
     r = resolver_vertex_cover(triangulo(), 1)
+
     assert r["existe"] is False
     assert r["cobertura"] == []
 
 
 def test_grafo_sin_aristas():
-    g = {"vertices": ["A", "B"], "aristas": []}
+    g = {
+        "vertices": ["A", "B"],
+        "aristas": []
+    }
+
     r = resolver_vertex_cover(g, 0)
-    assert r == {"existe": True, "cobertura": []}
+
+    assert r == {
+        "existe": True,
+        "cobertura": []
+    }
 
 
 def test_ignorar_direccion():
     g = {
         "vertices": ["A", "B"],
-        "aristas": [["A", "B"], ["B", "A"]]
+        "aristas": [
+            ["A", "B"],
+            ["B", "A"]
+        ]
     }
+
     r = resolver_vertex_cover(g, 1)
+
     assert r["existe"] is True
     assert len(r["cobertura"]) == 1
 
@@ -58,26 +77,36 @@ def test_ignorar_direccion():
 def test_ignorar_aristas_duplicadas():
     g = {
         "vertices": ["A", "B"],
-        "aristas": [["A", "B"], ["A", "B"]]
+        "aristas": [
+            ["A", "B"],
+            ["A", "B"]
+        ]
     }
+
     r = resolver_vertex_cover(g, 1)
+
     assert r["existe"] is True
 
 
 def test_seleccion_con_vertices_repetidos():
     assert not verificar_cobertura(
-        triangulo(), ["A", "A"]
+        triangulo(),
+        ["A", "A"]
     )
 
 
 def test_seleccion_supera_k():
     assert not verificar_cobertura(
-        triangulo(), ["A", "B"], 1
+        triangulo(),
+        ["A", "B"],
+        1
     )
 
 
 def test_k_cero():
-    assert not resolver_vertex_cover(triangulo(), 0)["existe"]
+    r = resolver_vertex_cover(triangulo(), 0)
+
+    assert r["existe"] is False
 
 
 def test_k_negativo():

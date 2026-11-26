@@ -1,210 +1,49 @@
 
 """Explorador visual de GraphLab TC."""
 
+from pathlib import Path
 from html import escape
 
 import streamlit as st
 
 from core.grafo import exportar_json, grafo_ejemplo, nuevo_grafo
+from algoritmos.bfs import bfs
+from algoritmos.dfs import dfs
+from algoritmos.vertex_cover import (
+    resolver_vertex_cover,
+    verificar_cobertura,
+)
 from utilidades.visualizacion import figura_grafo
 
 
-ESTILOS = """
-<style>
-[data-testid="stAppViewContainer"] {
-    background: radial-gradient(
-        ellipse at 80% 0%, #17254b, #0b1120 38%, #070c17
-    );
-}
+MAX_VERTICES_VERTEX_COVER = 16
 
-[data-testid="stHeader"] {
-    background: transparent;
-}
 
-[data-testid="stSidebar"] {
-    background: linear-gradient(180deg, #101b30, #0b1322);
-    border-right: 1px solid #263656;
-}
+def firma_grafo(grafo):
+    """Genera una firma para detectar cambios en el grafo."""
 
-.block-container {
-    max-width: 1460px;
-    padding-top: 2rem;
-}
+    return (
+        tuple(grafo["vertices"]),
+        tuple(tuple(arista) for arista in grafo["aristas"]),
+    )
 
-.gl-hero {
-    padding: 28px 32px;
-    margin-bottom: 20px;
-    border-radius: 20px;
-    border: 1px solid #314a72;
-    background: linear-gradient(
-        115deg, #152951, #111d37 65%, #10283a
-    );
-    box-shadow: 0 14px 35px rgba(0,0,0,.18);
-}
 
-.gl-kicker {
-    color: #60e5d0;
-    font-size: 11px;
-    font-weight: 800;
-    letter-spacing: 2px;
-}
+def cargar_estilos():
+    """Carga los estilos externos del explorador."""
 
-.gl-title {
-    margin: 10px 0;
-    color: #f8fbff;
-    font-size: clamp(27px, 3vw, 39px);
-    font-weight: 800;
-}
+    ruta_css = (
+        Path(__file__).resolve().parent.parent
+        / "estilos"
+        / "explorador.css"
+    )
 
-.gl-title span {
-    color: #76dcec;
-}
-
-.gl-subtitle {
-    color: #a9bdd9;
-    font-size: 14px;
-    line-height: 1.65;
-    max-width: 750px;
-}
-
-.gl-badges {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
-    margin-top: 16px;
-}
-
-.gl-badge {
-    display: inline-block;
-    border: 1px solid #355377;
-    border-radius: 25px;
-    padding: 6px 11px;
-    background: #1e3455;
-    color: #bde9fc;
-    font-size: 11px;
-    font-weight: 700;
-}
-
-.gl-badge.ready {
-    color: #8df0cc;
-    background: #123d37;
-    border-color: #24655a;
-}
-
-.gl-card {
-    padding: 17px;
-    min-height: 106px;
-    margin-bottom: 10px;
-    border-radius: 15px;
-    border: 1px solid #293b57;
-    background: linear-gradient(155deg, #16233a, #101a2c);
-}
-
-.gl-card-label {
-    font-size: 11px;
-    color: #8ca6c5;
-    font-weight: 800;
-    letter-spacing: .6px;
-}
-
-.gl-card-number {
-    font-size: 29px;
-    color: #f8fbff;
-    font-weight: 800;
-    margin-top: 7px;
-}
-
-.gl-card-note {
-    color: #6687ae;
-    font-size: 11px;
-    margin-top: 5px;
-}
-
-.gl-section-head {
-    color: #ecf7ff;
-    font-size: 18px;
-    font-weight: 750;
-    margin: 8px 0 12px;
-}
-
-.gl-legend {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 14px;
-    margin: 4px 0 12px;
-}
-
-.gl-legend-item {
-    color: #b9cde4;
-    font-size: 12px;
-    display: inline-flex;
-    gap: 7px;
-    align-items: center;
-}
-
-.gl-dot {
-    width: 10px;
-    height: 10px;
-    border-radius: 50%;
-    display: inline-block;
-}
-
-.gl-result {
-    background: #14233b;
-    border: 1px solid #2d4d72;
-    border-left: 3px solid #52cbd7;
-    border-radius: 12px;
-    padding: 17px;
-}
-
-.gl-route {
-    color: #f4f7ff;
-    font-weight: 800;
-    font-size: 18px;
-    margin: 8px 0;
-    overflow-wrap: anywhere;
-}
-
-.gl-muted {
-    color: #95adc9;
-    font-size: 12px;
-    line-height: 1.5;
-}
-
-.stButton > button {
-    background: linear-gradient(100deg, #1e568e, #1c7f92);
-    border: 1px solid #367f9c;
-    color: white;
-    border-radius: 10px;
-    font-weight: 700;
-}
-
-.stButton > button:hover {
-    background: #237a91;
-    border-color: #73e2da;
-    color: white;
-}
-
-@media (max-width: 700px) {
-    .gl-hero {
-        padding: 20px 18px;
-    }
-
-    .gl-card {
-        padding: 12px;
-        min-height: 90px;
-    }
-
-    .gl-card-number {
-        font-size: 24px;
-    }
-}
-</style>
-"""
+    with open(ruta_css, encoding="utf-8") as archivo:
+        st.html(f"<style>{archivo.read()}</style>")
 
 
 def tarjeta(titulo, valor, detalle):
+    """Muestra una tarjeta de información."""
+
     st.html(f"""
     <div class="gl-card">
         <div class="gl-card-label">{escape(str(titulo))}</div>
@@ -214,8 +53,51 @@ def tarjeta(titulo, valor, detalle):
     """)
 
 
-def preparar_figura(grafo, origen, destino, distribucion):
-    figura = figura_grafo(grafo, distribucion=distribucion)
+def mostrar_metricas(grafo):
+    """Muestra las métricas generales del grafo."""
+
+    vertices = grafo["vertices"]
+    aristas = grafo["aristas"]
+    cantidad = len(vertices)
+
+    densidad = (
+        100 * len(aristas) / (cantidad * (cantidad - 1))
+        if cantidad > 1 else 0
+    )
+
+    metricas = [
+        ("VÉRTICES", cantidad, "Nodos registrados"),
+        ("ARISTAS", len(aristas), "Conexiones dirigidas"),
+        ("DENSIDAD", f"{densidad:.0f}%", "De las conexiones posibles"),
+        (
+            "ESTADO",
+            "Listo" if cantidad else "Vacío",
+            "Editor sincronizado"
+        )
+    ]
+
+    columnas = st.columns(4)
+
+    for columna, datos in zip(columnas, metricas):
+        with columna:
+            tarjeta(*datos)
+
+
+def preparar_figura(
+    grafo,
+    origen=None,
+    destino=None,
+    distribucion="auto",
+    cobertura=None
+):
+    """Prepara el gráfico y resalta los vértices importantes."""
+
+    figura = figura_grafo(
+        grafo,
+        distribucion=distribucion
+    )
+
+    cobertura = set(cobertura or [])
 
     if figura.data:
         nodos = figura.data[-1]
@@ -226,17 +108,29 @@ def preparar_figura(grafo, origen, destino, distribucion):
             else list(grafo["vertices"])
         )
 
-        nodos.marker.size = [
-            54 if n in (origen, destino) else 43
-            for n in nombres
-        ]
+        colores = []
+        tamanos = []
 
-        nodos.marker.color = [
-            "#2dd4bf" if n == origen else
-            "#f59e65" if n == destino else
-            "#4e80ed"
-            for n in nombres
-        ]
+        for nombre in nombres:
+
+            if nombre in cobertura:
+                colores.append("#a78bfa")
+                tamanos.append(56)
+
+            elif nombre == origen:
+                colores.append("#2dd4bf")
+                tamanos.append(54)
+
+            elif nombre == destino:
+                colores.append("#f59e65")
+                tamanos.append(54)
+
+            else:
+                colores.append("#4e80ed")
+                tamanos.append(43)
+
+        nodos.marker.size = tamanos
+        nodos.marker.color = colores
 
         nodos.marker.line = dict(
             color="#dce9ff",
@@ -282,187 +176,60 @@ def preparar_figura(grafo, origen, destino, distribucion):
     return figura
 
 
-def mostrar_explorador():
-    st.html(ESTILOS)
+def mostrar_opciones_visuales(prefijo):
+    """Presenta las opciones de distribución y zoom."""
 
-    st.html("""
-    <div class="gl-hero">
-        <div class="gl-kicker">
-            ISC-312 · GRAPHLAB TC · MÓDULO 02
-        </div>
+    distribuciones = {
+        "Automática": "auto",
+        "Jerárquica": "jerarquica",
+        "Orgánica": "organica",
+        "Circular": "circular"
+    }
 
-        <div class="gl-title">
-            Exploración <span>BFS / DFS</span>
-        </div>
-
-        <div class="gl-subtitle">
-            Explorá grafos dirigidos, configurá consultas
-            de alcanzabilidad y analizá visualmente
-            las conexiones entre vértices.
-        </div>
-
-        <div class="gl-badges">
-            <span class="gl-badge ready">
-                ● Visualizador activo
-            </span>
-            <span class="gl-badge">
-                Grafo dirigido
-            </span>
-            <span class="gl-badge">
-                Algoritmos pendientes de integración
-            </span>
-        </div>
-    </div>
-    """)
-
-    if "grafo" not in st.session_state:
-        st.session_state.grafo = nuevo_grafo()
-
-    grafo = st.session_state.grafo
-    vertices = list(grafo["vertices"])
-    aristas = grafo["aristas"]
-
-    cantidad = len(vertices)
-
-    densidad = (
-        100 * len(aristas) / (cantidad * (cantidad - 1))
-        if cantidad > 1 else 0
+    nombre_distribucion = st.selectbox(
+        "Distribución de nodos",
+        list(distribuciones),
+        key=f"{prefijo}_distribucion"
     )
 
-    metricas = [
-        ("VÉRTICES", cantidad, "Nodos registrados"),
-        ("ARISTAS", len(aristas), "Conexiones dirigidas"),
-        ("DENSIDAD", f"{densidad:.0f}%", "De las conexiones posibles"),
-        (
-            "ESTADO",
-            "Listo" if cantidad else "Vacío",
-            "Editor sincronizado"
-        )
-    ]
-
-    columnas = st.columns(4)
-
-    for columna, datos in zip(columnas, metricas):
-        with columna:
-            tarjeta(*datos)
-
-    if not vertices:
-        st.info(
-            "El grafo está vacío. Podés cargar el ejemplo "
-            "o crear nodos desde Editor de grafos."
-        )
-
-        if st.button(
-            "Cargar grafo de ejemplo",
-            key="explorador_cargar_ejemplo"
-        ):
-            st.session_state.grafo = grafo_ejemplo()
-            st.rerun()
-
-        return
-
-    izquierda, derecha = st.columns(
-        [1.85, 1],
-        gap="large"
+    zoom = st.toggle(
+        "Zoom con rueda del mouse",
+        value=False,
+        key=f"{prefijo}_zoom"
     )
 
-    with derecha:
-        st.html(
-            '<div class="gl-section-head">Panel de control</div>'
-        )
+    return distribuciones[nombre_distribucion], nombre_distribucion, zoom
 
-        with st.container(border=True):
-            st.caption("CONFIGURACIÓN DE CONSULTA")
 
-            origen = st.selectbox(
-                "Vértice de origen",
-                vertices,
-                key="explorador_origen"
-            )
+def mostrar_grafico(
+    grafo,
+    distribucion,
+    nombre_distribucion,
+    zoom,
+    key,
+    origen=None,
+    destino=None,
+    cobertura=None
+):
+    """Muestra el grafo y su leyenda."""
 
-            destino = st.selectbox(
-                "Vértice de destino",
-                vertices,
-                index=len(vertices) - 1,
-                key="explorador_destino"
-            )
+    if cobertura is not None:
+        st.html("""
+        <div class="gl-legend">
+            <span class="gl-legend-item">
+                <span class="gl-dot"
+                      style="background:#a78bfa"></span>
+                Vértices seleccionados
+            </span>
 
-            algoritmo = st.selectbox(
-                "Algoritmo",
-                ["BFS", "DFS"],
-                key="explorador_algoritmo"
-            )
-
-            st.subheader("Opciones visuales")
-
-            distribuciones = {
-                "Automática": "auto",
-                "Jerárquica": "jerarquica",
-                "Orgánica": "organica",
-                "Circular": "circular"
-            }
-
-            nombre_distribucion = st.selectbox(
-                "Distribución de nodos",
-                list(distribuciones),
-                key="explorador_distribucion"
-            )
-
-            zoom = st.toggle(
-                "Zoom con rueda del mouse",
-                value=False,
-                key="explorador_zoom"
-            )
-
-            st.caption(
-                "La ejecución de BFS y DFS se integrará "
-                "cuando Dinora entregue los algoritmos."
-            )
-
-            if st.button(
-                "Restablecer grafo de ejemplo",
-                use_container_width=True
-            ):
-                st.session_state.grafo = grafo_ejemplo()
-                st.rerun()
-
-        st.html(
-            '<div class="gl-section-head">'
-            'Consulta preparada</div>'
-        )
-
-        st.html(f"""
-        <div class="gl-result">
-            <div class="gl-kicker">
-                {escape(algoritmo)} · ALCANZABILIDAD
-            </div>
-
-            <div class="gl-route">
-                {escape(origen)} &rarr; {escape(destino)}
-            </div>
-
-            <div class="gl-muted">
-                El origen se muestra en verde y
-                el destino en naranja.
-                La búsqueda todavía no se ha ejecutado.
-            </div>
+            <span class="gl-legend-item">
+                <span class="gl-dot"
+                      style="background:#4e80ed"></span>
+                Otros vértices
+            </span>
         </div>
         """)
-
-        st.download_button(
-            "Exportar grafo JSON",
-            data=exportar_json(grafo),
-            file_name="graphlab_grafo.json",
-            mime="application/json",
-            use_container_width=True
-        )
-
-    with izquierda:
-        st.html(
-            '<div class="gl-section-head">'
-            'Mapa interactivo del grafo</div>'
-        )
-
+    else:
         st.html("""
         <div class="gl-legend">
             <span class="gl-legend-item">
@@ -485,39 +252,636 @@ def mostrar_explorador():
         </div>
         """)
 
-        with st.container(border=True):
-            figura = preparar_figura(
-                grafo,
-                origen,
-                destino,
-                distribuciones[nombre_distribucion]
+    with st.container(border=True):
+
+        figura = preparar_figura(
+            grafo,
+            origen,
+            destino,
+            distribucion,
+            cobertura
+        )
+
+        st.plotly_chart(
+            figura,
+            width="stretch",
+            key=key,
+            config={
+                "displayModeBar": True,
+                "displaylogo": False,
+                "scrollZoom": zoom,
+                "modeBarButtonsToRemove": [
+                    "lasso2d",
+                    "select2d",
+                    "autoScale2d"
+                ]
+            }
+        )
+
+        st.caption(
+            f"Distribución: {nombre_distribucion}. "
+            "Usá las herramientas del gráfico para "
+            "acercar, alejar y restablecer la vista."
+        )
+
+
+def mostrar_estructura_grafo(grafo):
+    """Permite consultar la estructura interna del grafo."""
+
+    with st.expander("Ver estructura del grafo"):
+        st.json(grafo)
+
+
+def mostrar_resultado(
+    consulta,
+    algoritmo,
+    origen,
+    destino,
+    grafo
+):
+    """Muestra los resultados de BFS o DFS si siguen vigentes."""
+
+    if not consulta:
+        st.info(
+            "Configurá los parámetros y presioná Ejecutar "
+            "para analizar el grafo."
+        )
+        return
+
+    if consulta.get("firma_grafo") != firma_grafo(grafo):
+        st.info(
+            "El grafo cambió desde la última búsqueda. "
+            "Ejecutá nuevamente el algoritmo."
+        )
+        return
+
+    if consulta["algoritmo"] != algoritmo:
+        st.info(
+            "La configuración cambió. "
+            "Ejecutá nuevamente el algoritmo."
+        )
+        return
+
+    if (
+        consulta["origen"] != origen
+        or consulta["destino"] != destino
+    ):
+        st.info(
+            "La configuración cambió. "
+            "Presioná Ejecutar para realizar una nueva búsqueda."
+        )
+        return
+
+    resultado = consulta["resultado"]
+
+    if resultado["alcanzable"]:
+        st.success("¡Se encontró una ruta!")
+
+        ruta = " → ".join(resultado["ruta"])
+
+        st.html(f"""
+        <div class="gl-result">
+            <div class="gl-kicker">
+                {escape(algoritmo)} · RUTA ENCONTRADA
+            </div>
+            <div class="gl-route">
+                {escape(ruta)}
+            </div>
+            <div class="gl-muted">
+                Se encontró un camino desde
+                {escape(origen)} hasta {escape(destino)}.
+            </div>
+        </div>
+        """)
+    else:
+        st.warning(
+            f"No existe una ruta desde {origen} hasta {destino}."
+        )
+
+    columna1, columna2 = st.columns(2)
+
+    with columna1:
+        st.metric(
+            "Vértices procesados",
+            len(resultado["visitados"])
+        )
+
+    with columna2:
+        st.metric(
+            "Pasos de exploración",
+            len(resultado["pasos"])
+        )
+
+    st.markdown("**Vértices visitados**")
+
+    st.write(
+        " → ".join(resultado["visitados"])
+        if resultado["visitados"]
+        else "Ninguno"
+    )
+
+    with st.expander("Ver pasos de la exploración"):
+        for numero, paso in enumerate(resultado["pasos"], start=1):
+            st.markdown(
+                f"**Paso {numero}: vértice {paso['actual']}**"
             )
 
-            st.plotly_chart(
-                figura,
-                width="stretch",
-                key="explorador_grafo_plot",
-                config={
-                    "displayModeBar": True,
-                    "displaylogo": False,
-                    "scrollZoom": zoom,
-                    "modeBarButtonsToRemove": [
-                        "lasso2d",
-                        "select2d",
-                        "autoScale2d"
-                    ]
-                }
+            st.write("Frontera:", paso["frontera"])
+            st.write("Visitados:", paso["visitados"])
+
+
+def mostrar_resultado_vertex_cover(consulta, k, grafo):
+    """Muestra y verifica el resultado vigente de Vertex Cover."""
+
+    if not consulta:
+        st.info(
+            "Configurá el valor de K y presioná "
+            "Ejecutar Vertex Cover."
+        )
+        return
+
+    if consulta.get("firma_grafo") != firma_grafo(grafo):
+        st.info(
+            "El grafo cambió desde el último análisis. "
+            "Ejecutá nuevamente Vertex Cover."
+        )
+        return
+
+    if consulta["k"] != k:
+        st.info(
+            "El valor de K cambió. "
+            "Ejecutá nuevamente Vertex Cover."
+        )
+        return
+
+    resultado = consulta["resultado"]
+
+    st.markdown(f"**Límite de cobertura: K = {k}**")
+
+    if resultado["existe"]:
+
+        cobertura = resultado["cobertura"]
+
+        valida = verificar_cobertura(grafo, cobertura, k)
+
+        if not valida:
+            st.error(
+                "La solución encontrada no superó la verificación."
+            )
+            return
+
+        st.success(
+            "¡Se encontró una cobertura de vértices válida!"
+        )
+
+        st.html(f"""
+        <div class="gl-result">
+            <div class="gl-kicker">
+                VERTEX COVER · SOLUCIÓN ENCONTRADA
+            </div>
+            <div class="gl-route">
+                {escape(" , ".join(cobertura) if cobertura else "Sin vértices")}
+            </div>
+            <div class="gl-muted">
+                Todos los extremos de las aristas están cubiertos
+                por al menos un vértice seleccionado.
+            </div>
+        </div>
+        """)
+
+        columna1, columna2 = st.columns(2)
+
+        with columna1:
+            st.metric("Vértices seleccionados", len(cobertura))
+
+        with columna2:
+            st.metric("Aristas cubiertas", len(grafo["aristas"]))
+
+        st.markdown("**Verificación de la solución**")
+
+        for a, b in grafo["aristas"]:
+            if a in cobertura or b in cobertura:
+                st.write(f"✓ {a} — {b}: cubierta")
+            else:
+                st.error(f"✗ {a} — {b}: no cubierta")
+
+        st.caption(
+            "El algoritmo busca primero las combinaciones "
+            "más pequeñas. Por eso encuentra una cobertura "
+            "mínima dentro del límite establecido."
+        )
+
+    else:
+        st.warning(
+            f"No existe una cobertura de vértices "
+            f"con un máximo de {k} vértices."
+        )
+
+        st.caption("Probá aumentando el valor de K.")
+
+
+def mostrar_explorador():
+    """Presenta la pantalla de exploración BFS y DFS."""
+
+    cargar_estilos()
+
+    st.html("""
+    <div class="gl-hero">
+        <div class="gl-kicker">
+            ISC-312 · GRAPHLAB TC · MÓDULO 02
+        </div>
+
+        <div class="gl-title">
+            Exploración <span>de grafos</span>
+        </div>
+
+        <div class="gl-subtitle">
+            Explorá grafos dirigidos, configurá consultas
+            de alcanzabilidad y analizá rutas mediante
+            los algoritmos BFS y DFS.
+        </div>
+
+        <div class="gl-badges">
+            <span class="gl-badge ready">
+                ● Visualizador activo
+            </span>
+            <span class="gl-badge">
+                Grafo dirigido
+            </span>
+            <span class="gl-badge ready">
+                BFS y DFS integrados
+            </span>
+        </div>
+    </div>
+    """)
+
+    if "grafo" not in st.session_state:
+        st.session_state.grafo = nuevo_grafo()
+
+    grafo = st.session_state.grafo
+    vertices = list(grafo["vertices"])
+
+    mostrar_metricas(grafo)
+
+    if not vertices:
+        st.info(
+            "El grafo está vacío. Podés cargar el ejemplo "
+            "o crear nodos desde Editor de grafos."
+        )
+
+        if st.button(
+            "Cargar grafo de ejemplo",
+            key="explorador_cargar_ejemplo"
+        ):
+            st.session_state.grafo = grafo_ejemplo()
+            st.session_state.pop("explorador_resultado", None)
+            st.rerun()
+
+        return
+
+    izquierda, derecha = st.columns(
+        [1.85, 1],
+        gap="large"
+    )
+
+    with derecha:
+        st.html(
+            '<div class="gl-section-head">Panel de control</div>'
+        )
+
+        with st.container(border=True):
+            st.caption("CONFIGURACIÓN DE CONSULTA")
+
+            algoritmo = st.selectbox(
+                "Algoritmo",
+                ["BFS", "DFS"],
+                key="explorador_algoritmo"
+            )
+
+            origen = st.selectbox(
+                "Vértice de origen",
+                vertices,
+                key="explorador_origen"
+            )
+
+            destino = st.selectbox(
+                "Vértice de destino",
+                vertices,
+                index=len(vertices) - 1,
+                key="explorador_destino"
+            )
+
+            st.subheader("Opciones visuales")
+
+            distribucion, nombre_distribucion, zoom = (
+                mostrar_opciones_visuales("explorador")
+            )
+
+            if st.button(
+                f"Ejecutar {algoritmo}",
+                use_container_width=True,
+                type="primary",
+                key="ejecutar_exploracion"
+            ):
+                try:
+                    if algoritmo == "BFS":
+                        resultado = bfs(grafo, origen, destino)
+                    else:
+                        resultado = dfs(grafo, origen, destino)
+
+                    st.session_state["explorador_resultado"] = {
+                        "algoritmo": algoritmo,
+                        "origen": origen,
+                        "destino": destino,
+                        "firma_grafo": firma_grafo(grafo),
+                        "resultado": resultado
+                    }
+
+                except ValueError as error:
+                    st.session_state.pop(
+                        "explorador_resultado",
+                        None
+                    )
+                    st.error(str(error))
+
+            if st.button(
+                "Restablecer grafo de ejemplo",
+                use_container_width=True,
+                key="explorador_restaurar"
+            ):
+                st.session_state.grafo = grafo_ejemplo()
+                st.session_state.pop(
+                    "explorador_resultado",
+                    None
+                )
+                st.rerun()
+
+        st.html(
+            '<div class="gl-section-head">'
+            'Resultado de la consulta</div>'
+        )
+
+        consulta = st.session_state.get(
+            "explorador_resultado"
+        )
+
+        mostrar_resultado(
+            consulta,
+            algoritmo,
+            origen,
+            destino,
+            grafo
+        )
+
+        st.download_button(
+            "Exportar grafo JSON",
+            data=exportar_json(grafo),
+            file_name="graphlab_grafo.json",
+            mime="application/json",
+            use_container_width=True
+        )
+
+    with izquierda:
+        st.html(
+            '<div class="gl-section-head">'
+            'Mapa interactivo del grafo</div>'
+        )
+
+        consulta = st.session_state.get(
+            "explorador_resultado"
+        )
+
+        origen_grafico = None
+        destino_grafico = None
+
+        if (
+            consulta
+            and consulta.get("firma_grafo") == firma_grafo(grafo)
+            and consulta["algoritmo"] == algoritmo
+            and consulta["origen"] == origen
+            and consulta["destino"] == destino
+        ):
+            origen_grafico = origen
+            destino_grafico = destino
+
+        mostrar_grafico(
+            grafo,
+            distribucion,
+            nombre_distribucion,
+            zoom,
+            "explorador_grafo_plot",
+            origen_grafico,
+            destino_grafico
+        )
+
+        mostrar_estructura_grafo(grafo)
+
+    st.caption(
+        "GraphLab TC · UNAH · Exploración de alcanzabilidad "
+        "mediante BFS y DFS"
+    )
+
+
+def mostrar_vertex_cover():
+    """Presenta la pantalla independiente de Vertex Cover."""
+
+    cargar_estilos()
+
+    st.html("""
+    <div class="gl-hero">
+        <div class="gl-kicker">
+            ISC-312 · GRAPHLAB TC · MÓDULO 03
+        </div>
+
+        <div class="gl-title">
+            Problema de <span>Vertex Cover</span>
+        </div>
+
+        <div class="gl-subtitle">
+            Analizá si existe un conjunto de vértices
+            que cubra todas las aristas del grafo
+            sin superar el límite K establecido.
+        </div>
+
+        <div class="gl-badges">
+            <span class="gl-badge ready">
+                ● Algoritmo integrado
+            </span>
+            <span class="gl-badge">
+                Problema de decisión
+            </span>
+            <span class="gl-badge ready">
+                Verificación de cobertura
+            </span>
+        </div>
+    </div>
+    """)
+
+    if "grafo" not in st.session_state:
+        st.session_state.grafo = nuevo_grafo()
+
+    grafo = st.session_state.grafo
+
+    mostrar_metricas(grafo)
+
+    vertices = list(grafo["vertices"])
+
+    if not vertices:
+        st.info(
+            "El grafo está vacío. Podés cargar el ejemplo "
+            "o crear nodos desde Editor de grafos."
+        )
+
+        if st.button(
+            "Cargar grafo de ejemplo",
+            key="vertex_cover_cargar_ejemplo"
+        ):
+            st.session_state.grafo = grafo_ejemplo()
+            st.session_state.pop("vertex_cover_resultado", None)
+            st.rerun()
+
+        return
+
+    izquierda, derecha = st.columns(
+        [1.85, 1],
+        gap="large"
+    )
+
+    with derecha:
+        st.html(
+            '<div class="gl-section-head">Panel de control</div>'
+        )
+
+        with st.container(border=True):
+            st.caption("CONFIGURACIÓN DEL PROBLEMA")
+
+            k = st.number_input(
+                "Cantidad máxima de vértices (K)",
+                min_value=0,
+                max_value=MAX_VERTICES_VERTEX_COVER,
+                value=2,
+                step=1,
+                key="vertex_cover_k"
             )
 
             st.caption(
-                f"Distribución: {nombre_distribucion}. "
-                "Usá las herramientas del gráfico para "
-                "acercar, alejar y restablecer la vista."
+                "Vertex Cover busca una selección de hasta K "
+                "vértices que cubra todas las aristas."
             )
 
-        with st.expander("Ver estructura del grafo"):
-            st.json(grafo)
+            st.caption(
+                f"Esta versión admite hasta "
+                f"{MAX_VERTICES_VERTEX_COVER} vértices "
+                "para la búsqueda exacta."
+            )
+
+            if len(vertices) > MAX_VERTICES_VERTEX_COVER:
+                st.warning(
+                    f"El grafo tiene {len(vertices)} vértices. "
+                    f"Vertex Cover admite como máximo "
+                    f"{MAX_VERTICES_VERTEX_COVER}. "
+                    "Reducí el grafo para ejecutar este análisis."
+                )
+
+            st.subheader("Opciones visuales")
+
+            distribucion, nombre_distribucion, zoom = (
+                mostrar_opciones_visuales("vertex_cover")
+            )
+
+            if st.button(
+                "Ejecutar Vertex Cover",
+                use_container_width=True,
+                type="primary",
+                key="ejecutar_vertex_cover",
+                disabled=len(vertices) > MAX_VERTICES_VERTEX_COVER
+            ):
+                try:
+                    resultado = resolver_vertex_cover(
+                        grafo,
+                        int(k)
+                    )
+
+                    st.session_state["vertex_cover_resultado"] = {
+                        "k": int(k),
+                        "firma_grafo": firma_grafo(grafo),
+                        "resultado": resultado
+                    }
+
+                except ValueError as error:
+                    st.session_state.pop(
+                        "vertex_cover_resultado",
+                        None
+                    )
+                    st.error(str(error))
+
+            if st.button(
+                "Restablecer grafo de ejemplo",
+                use_container_width=True,
+                key="vertex_cover_restaurar"
+            ):
+                st.session_state.grafo = grafo_ejemplo()
+                st.session_state.pop(
+                    "vertex_cover_resultado",
+                    None
+                )
+                st.rerun()
+
+        st.html(
+            '<div class="gl-section-head">'
+            'Resultado de Vertex Cover</div>'
+        )
+
+        consulta = st.session_state.get(
+            "vertex_cover_resultado"
+        )
+
+        mostrar_resultado_vertex_cover(
+            consulta,
+            int(k),
+            grafo
+        )
+
+        st.download_button(
+            "Exportar grafo JSON",
+            data=exportar_json(grafo),
+            file_name="graphlab_grafo.json",
+            mime="application/json",
+            use_container_width=True,
+            key="vertex_cover_exportar"
+        )
+
+    with izquierda:
+        st.html(
+            '<div class="gl-section-head">'
+            'Visualización de la cobertura</div>'
+        )
+
+        consulta = st.session_state.get(
+            "vertex_cover_resultado"
+        )
+
+        cobertura = []
+
+        if (
+            consulta
+            and consulta.get("firma_grafo") == firma_grafo(grafo)
+            and consulta["k"] == int(k)
+            and consulta["resultado"]["existe"]
+        ):
+            cobertura = consulta["resultado"]["cobertura"]
+
+        mostrar_grafico(
+            grafo,
+            distribucion,
+            nombre_distribucion,
+            zoom,
+            "vertex_cover_grafo_plot",
+            cobertura=cobertura
+        )
+
+        mostrar_estructura_grafo(grafo)
 
     st.caption(
-        "GraphLab TC · UNAH · Visualización en desarrollo"
+        "GraphLab TC · UNAH · Problema de decisión Vertex Cover"
     )
